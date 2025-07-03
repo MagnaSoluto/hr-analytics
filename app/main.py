@@ -80,7 +80,6 @@ class Funcionario(BaseModel):
     Cargo: Literal["Analista", "Desenvolvedor", "Gerente", "Coordenador", "Diretor", "Estagiário"]
     Escolaridade: Literal["Ensino Médio", "Tecnólogo", "Superior", "Pós-graduação", "Mestrado", "Doutorado"]
     Setor: Literal["TI", "RH", "Financeiro", "Marketing", "Vendas", "Operações"]
-    FaixaEtaria: Literal["18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
     SalarioMensal: float = Field(..., example=5500.0)
     AnosExperiencia: float = Field(..., example=10.0)
     AnosEmpresa: float = Field(..., example=5.0)

@@ -3,68 +3,36 @@ import requests
 
 API_URL = "http://localhost:8000/prever"
 
+
+def calcular_faixa_etaria(idade: int) -> str:
+    if idade < 25:
+        return "18-24"
+    if idade < 35:
+        return "25-34"
+    if idade < 45:
+        return "35-44"
+    if idade < 55:
+        return "45-54"
+    if idade < 65:
+        return "55-64"
+    return "65+"
+
 st.set_page_config(
-    page_title="Mackenzie Turnover Predictor",
+    page_title="HR Turnover Predictor",
     page_icon="🏢",
     layout="centered",
 )
 
-# Estilo visual para título, subheadings e labels
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background-color: #ffffff;
-    }
-
-    /* Título principal */
-    .title {
-        color: #A80532;
-        text-align: center;
-        font-size: 36px;
-        font-weight: 700;
-    }
-
-    /* Subtítulos (como Informações Pessoais, Carreira etc.) */
-    section div[data-testid="stMarkdownContainer"] h2 {
-        color: #1f1f1f;
-        font-size: 20px;
-        font-weight: 700;
-        margin-top: 1.5em;
-        margin-bottom: 0.5em;
-    }
-
-    /* Labels dos campos */
-    label, .stRadio > label {
-        font-weight: 600 !important;
-        color: #1f1f1f !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown(
-    "# <span class='title'>Previsão de Desligamento</span>", unsafe_allow_html=True
-)
-
-# Estilos adicionais para melhorar visibilidade dos rótulos
-st.markdown(
-    """
-    <style>
-    label, .stRadio > label {
-        font-weight: 600 !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.title("Previsão de Desligamento")
 
 
 with st.form("funcionario_form"):
-    st.markdown('<div class="secao-titulo">Informações Pessoais</div>', unsafe_allow_html=True)
+    st.header("Informações Pessoais")
     col1, col2, col3 = st.columns(3)
     with col1:
         idade = st.number_input("Idade", min_value=18, max_value=70, value=30)
+        faixa_etaria = calcular_faixa_etaria(idade)
+        st.caption(f"Faixa Etária: {faixa_etaria}")
     with col2:
         genero = st.selectbox("Gênero", ["Masculino", "Feminino", "Outro"])
     with col3:
@@ -105,10 +73,6 @@ with st.form("funcionario_form"):
         setor = st.selectbox(
             "Setor",
             ["TI", "RH", "Financeiro", "Marketing", "Vendas", "Operações"],
-        )
-        faixa_etaria = st.selectbox(
-            "Faixa Etária",
-            ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"],
         )
         salario_mensal = st.number_input("Salário Mensal", min_value=0.0, value=5000.0)
         anos_experiencia = st.number_input(
@@ -157,6 +121,7 @@ with st.form("funcionario_form"):
     submitted = st.form_submit_button("Prever")
 
 if submitted:
+    faixa_etaria = calcular_faixa_etaria(idade)
     payload = {
         "funcionarios": [
             {
@@ -167,7 +132,6 @@ if submitted:
                 "Cargo": cargo,
                 "Escolaridade": escolaridade,
                 "Setor": setor,
-                "FaixaEtaria": faixa_etaria,
                 "SalarioMensal": salario_mensal,
                 "AnosExperiencia": anos_experiencia,
                 "AnosEmpresa": anos_empresa,
