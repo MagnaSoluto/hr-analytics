@@ -21,16 +21,54 @@ preproc_path = os.path.join(root_dir, 'models', 'preprocessor.pkl')
 modelo = joblib.load(model_path)
 preprocessador = joblib.load(preproc_path)
 
-# Função para criar variáveis de engenharia
-def adicionar_variaveis_engineering(df: pd.DataFrame) -> pd.DataFrame:
+# Função para preparar dados com feature engineering e codificação simples
+def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona features e codifica categorias para uso no modelo."""
+
+    df = df.copy()
+
+    # Novas features baseadas em regras do domínio
     df['SatisfacaoMedia'] = df[['SatisfacaoTrabalho', 'SatisfacaoAmbiente', 'SatisfacaoRelacionamento']].mean(axis=1)
-    df['FormacaoSuperiorOuMais'] = df['AreaFormacao'].apply(lambda x: 1 if x in ['TI', 'Engenharia', 'Administração'] else 0)
-    df['DistanteDoTrabalho'] = (df['DistanciaCasa'] > 10).astype(int)
-    df['RiscoHorasExtras'] = (df['HorasExtras'] > 10).astype(int)
-    df['ViajaMuito'] = df['ViagemTrabalho'].apply(lambda x: 1 if x == 'Frequentemente' else 0)
-    df['SalarioAjustado'] = df['SalarioMensal'] / (df['AnosExperiencia'] + 1)
+    df['FaixaEtaria'] = pd.cut(df['Idade'], bins=[17, 29, 45, 66], labels=['<30', '30-45', '>45'])
+    df['DistanteDoTrabalho'] = (df['DistanciaCasa'] > 20).astype(int)
+    df['ViajaMuito'] = (df['ViagemTrabalho'] == 'Frequentemente').astype(int)
+    df['FormacaoSuperiorOuMais'] = df['Escolaridade'].apply(
+        lambda x: 1 if x in ['Superior', 'Pós-graduação', 'Mestrado', 'Doutorado'] else 0
+    )
+    df['RiscoHorasExtras'] = ((df['HorasExtras'] > 10) & (df['EquilibrioVida'] <= 2)).astype(int)
+    df['TempoSemPromocao'] = df['AnosUltimaPromocao']
     df['ExperienciaPorEmpresa'] = df['AnosExperiencia'] / (df['EmpresasAnteriores'] + 1)
-    df['EstabilidadeNaEmpresa'] = df['AnosEmpresa'] / (df['EmpresasAnteriores'] + 1)
+
+    nivel_map = {'Júnior': 1, 'Pleno': 2, 'Sênior': 3, 'Gerente': 4, 'Diretor': 5}
+    df['SalarioAjustado'] = df['SalarioMensal'] / df['NivelCargo'].map(nivel_map).replace(0, 1)
+    df['EstabilidadeNaEmpresa'] = df['AnosEmpresa'] / df['AnosExperiencia'].replace(0, 1)
+
+    # Codificação simples (ordinal) para as colunas categóricas
+    mapeamentos = {
+        'Genero': {'Feminino': 0, 'Masculino': 1, 'Outro': 2},
+        'EstadoCivil': {'Casado': 0, 'Divorciado': 1, 'Solteiro': 2},
+        'NivelCargo': nivel_map,
+        'Cargo': {
+            k: i for i, k in enumerate(sorted(['Analista', 'Coordenador', 'Desenvolvedor', 'Diretor', 'Estagiário', 'Gerente']))
+        },
+        'Escolaridade': {
+            'Ensino Médio': 1,
+            'Tecnólogo': 2,
+            'Superior': 3,
+            'Pós-graduação': 4,
+            'Mestrado': 5,
+            'Doutorado': 6,
+        },
+        'Setor': {k: i for i, k in enumerate(sorted(['TI', 'RH', 'Financeiro', 'Marketing', 'Vendas', 'Operações']))},
+        'ViagemTrabalho': {'Não viaja': 0, 'Às vezes': 1, 'Frequentemente': 2},
+        'AreaFormacao': {k: i for i, k in enumerate(sorted(['TI', 'Engenharia', 'Administração', 'RH', 'Outros']))},
+        'FaixaEtaria': {'<30': 0, '30-45': 1, '>45': 2},
+    }
+
+    for coluna, mapa in mapeamentos.items():
+        if coluna in df.columns:
+            df[coluna] = df[coluna].map(mapa)
+
     return df
 
 # ========== Schema ==========
@@ -74,8 +112,8 @@ def prever_desligamento(entrada: ListaFuncionarios):
         # Converter entrada em DataFrame
         dados = pd.DataFrame([f.dict() for f in entrada.funcionarios])
         
-        # Criar colunas adicionais
-        dados = adicionar_variaveis_engineering(dados)
+        # Preparar dados com feature engineering e codificação
+        dados = preparar_dados(dados)
         
         # Aplicar pré-processamento
         dados_transf = preprocessador.transform(dados)
