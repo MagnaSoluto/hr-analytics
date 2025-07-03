@@ -9,22 +9,40 @@ st.set_page_config(
     layout="centered",
 )
 
-# Apply simple style to match Mackenzie colors
+# Estilo visual para título, subheadings e labels
 st.markdown(
     """
     <style>
     .stApp {
         background-color: #ffffff;
     }
+
+    /* Título principal */
     .title {
         color: #A80532;
         text-align: center;
+        font-size: 36px;
+        font-weight: 700;
+    }
+
+    /* Subtítulos (como Informações Pessoais, Carreira etc.) */
+    section div[data-testid="stMarkdownContainer"] h2 {
+        color: #1f1f1f;
+        font-size: 20px;
+        font-weight: 700;
+        margin-top: 1.5em;
+        margin-bottom: 0.5em;
+    }
+
+    /* Labels dos campos */
+    label, .stRadio > label {
+        font-weight: 600 !important;
+        color: #1f1f1f !important;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 st.markdown(
     "# <span class='title'>Previsão de Desligamento</span>", unsafe_allow_html=True
 )
@@ -43,7 +61,7 @@ st.markdown(
 
 
 with st.form("funcionario_form"):
-    st.subheader("Informações Pessoais")
+    st.markdown('<div class="secao-titulo">Informações Pessoais</div>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
         idade = st.number_input("Idade", min_value=18, max_value=70, value=30)
