@@ -78,8 +78,17 @@ Os notebooks devem ser executados na seguinte ordem dentro da pasta `notebooks/`
 **Para geração do dataset sintético:**  
 O script `scripts/gerar_dataset.py` permite gerar novas amostras controladas via função `gerar_base_rh_analitico`.
 
-**Para executar a API:**  
-Após salvar o modelo treinado na etapa 5, rode o app FastAPI (ver instruções em `06_api/`).
+**Para executar a API:**
+Após salvar o modelo treinado na etapa 5, inicialize o serviço FastAPI utilizando o `uvicorn`:
+```bash
+uvicorn app.main:app --reload
+```
+
+**Para iniciar a interface Streamlit:**
+Em outro terminal, execute o aplicativo que consome a API:
+```bash
+streamlit run app/streamlit_app.py
+```
 
 ---
 
