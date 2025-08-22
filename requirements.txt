@@ -17,4 +17,3 @@ ace_tools
 joblib
 fastapi
 uvicorn
-streamlit

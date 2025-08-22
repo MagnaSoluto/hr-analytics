@@ -13,122 +13,105 @@ from optuna.samplers import TPESampler
 
 def gerar_base_rh_analitico(qtd_amostras=1_000_000, semente=42):
     """
-    Gera um dataset sintético baseado em empresas brasileiras para análise de rotatividade de funcionários (desligamento).
-
-    Parâmetros:
-    - qtd_amostras (int): número de funcionários simulados
-    - semente (int): semente para reprodutibilidade
-
-    Retorna:
-    - pd.DataFrame: dataframe com as colunas simuladas
+    Gera um dataset sintético baseado em empresas brasileiras para análise de rotatividade de funcionários (desligamento),
+    incluindo todas as variáveis obrigatórias e target ajustado para ~16% de desligamentos.
     """
     np.random.seed(semente)
     dados = {}
 
-    # Faixa etária mais realista no Brasil (com foco entre 25 e 50 anos)
+    # Demográficas
     dados['Idade'] = np.clip(np.random.normal(36, 9, qtd_amostras).astype(int), 18, 65)
+    dados['Genero'] = np.random.choice(['Masculino', 'Feminino'], qtd_amostras, p=[0.55, 0.45])
+    dados['EstadoCivil'] = np.random.choice(
+        ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)'],
+        qtd_amostras, p=[0.33, 0.53, 0.14]
+    )
 
-    # Gênero
-    dados['Genero'] = np.random.choice(['Feminino', 'Masculino'], qtd_amostras, p=[0.45, 0.55])
-
-    # Escolaridade (1-Fundamental, 2-Médio, 3-Técnico, 4-Superior, 5-Pós)
-    escolaridade_probs = [0.08, 0.25, 0.20, 0.35, 0.12]
-    dados['Escolaridade'] = np.random.choice([1, 2, 3, 4, 5], qtd_amostras, p=escolaridade_probs)
-
-    # Área de formação
-    areas_formacao = ['Exatas', 'Humanas', 'Saúde', 'Marketing', 'Tecnologia', 'Recursos Humanos']
-    dados['AreaFormacao'] = np.random.choice(areas_formacao, qtd_amostras)
-
-    # Setor
-    setor_probs = [0.50, 0.35, 0.15]  # Vendas mais comum, RH menos comum
-    dados['Setor'] = np.random.choice(['Vendas', 'Pesquisa e Desenvolvimento', 'Recursos Humanos'],
-                                      qtd_amostras, p=setor_probs)
-
-    # Cargo baseado no setor
+    # Profissionais
+    dados['Escolaridade'] = np.random.choice(
+        [1, 2, 3, 4, 5], qtd_amostras,
+        p=[0.08, 0.25, 0.20, 0.35, 0.12]
+    )
+    dados['AreaFormacao'] = np.random.choice(
+        ['Exatas', 'Humanas', 'Saúde', 'Marketing', 'Tecnologia', 'Recursos Humanos'],
+        qtd_amostras
+    )
+    dados['Setor'] = np.random.choice(
+        ['Vendas', 'Pesquisa e Desenvolvimento', 'Recursos Humanos'],
+        qtd_amostras, p=[0.50, 0.35, 0.15]
+    )
     cargos = {
         'Vendas': ['Executivo de Vendas', 'Representante Comercial', 'Gerente de Contas'],
         'Pesquisa e Desenvolvimento': ['Pesquisador', 'Técnico de Laboratório', 'Diretor de P&D', 'Gerente de Projeto'],
         'Recursos Humanos': ['Analista de RH', 'Coordenador de RH']
     }
+    dados['Cargo'] = [np.random.choice(cargos[setor]) for setor in dados['Setor']]
 
-    dados['Cargo'] = np.empty(qtd_amostras, dtype=object)
-    for setor in cargos:
-        mask = np.array(dados['Setor']) == setor
-        n_setor = mask.sum()
-        if n_setor > 0:
-            dados['Cargo'][mask] = np.random.choice(cargos[setor], n_setor)
-
-    # Nível do cargo
+    # Senioridade
     base = np.ones(qtd_amostras)
-    idade_bonus = (np.array(dados['Idade']) - 18) / 47 * 2
-    esc_bonus = (np.array(dados['Escolaridade']) - 1) / 4 * 2
-    dados['NivelCargo'] = np.clip(np.round(base + idade_bonus + esc_bonus).astype(int), 1, 5)
+    bonus_idade = (dados['Idade'] - 18) / 47 * 2
+    bonus_esc = (dados['Escolaridade'] - 1) / 4 * 2
+    dados['NivelCargo'] = np.clip(np.round(base + bonus_idade + bonus_esc).astype(int), 1, 5)
 
-    # Tempo de experiência
+    # Experiência
     dados['AnosExperiencia'] = np.maximum(0, dados['Idade'] - 18 - np.random.randint(0, 5, qtd_amostras))
-
-    # Tempo na empresa
     dados['AnosEmpresa'] = np.minimum(np.random.randint(0, 16, qtd_amostras), dados['AnosExperiencia'])
-
-    # Tempo no cargo atual
     dados['AnosCargoAtual'] = np.minimum(np.random.randint(0, 11, qtd_amostras), dados['AnosEmpresa'])
-
-    # Tempo desde a última promoção
     dados['AnosUltimaPromocao'] = np.minimum(np.random.randint(0, 7, qtd_amostras), dados['AnosEmpresa'])
-
-    # Tempo com o gestor atual
     dados['AnosGestorAtual'] = np.minimum(np.random.randint(0, 7, qtd_amostras), dados['AnosCargoAtual'])
+    max_ant = np.minimum(dados['AnosExperiencia'] // 2, 8)
+    dados['EmpresasAnteriores'] = [np.random.randint(0, x+1) for x in max_ant]
 
-    # Empresas anteriores
-    max_empresas = np.minimum(dados['AnosExperiencia'] // 2, 8)
-    dados['EmpresasAnteriores'] = [np.random.randint(0, max(1, mc) + 1) for mc in max_empresas]
-
-    # Salário mensal (ajustado à realidade brasileira)
+    # Compensação
     salario_base = 1800
     fator_nivel = dados['NivelCargo'] * 2200
     fator_esc = dados['Escolaridade'] * 400
     fator_exp = dados['AnosExperiencia'] * 120
     ruido = np.random.normal(0, 900, qtd_amostras)
+    dados['SalarioMensal'] = np.clip(
+        (salario_base + fator_nivel + fator_esc + fator_exp + ruido).astype(int),
+        1400, 20000
+    )
+    dados['PercentualAumentoSalario'] = np.random.randint(10, 26, qtd_amostras)
+    dados['NivelOpcaoAcao'] = np.random.choice([0, 1, 2, 3], qtd_amostras, p=[0.6, 0.25, 0.1, 0.05])
 
-    dados['SalarioMensal'] = np.clip((salario_base + fator_nivel + fator_esc + fator_exp + ruido).astype(int), 1400, 20000)
-
-    # Distância de casa até o trabalho
-    dados['DistanciaCasa'] = np.clip(np.random.exponential(6, qtd_amostras).astype(int) + 1, 1, 35)
-
-    # Viagem a trabalho
-    viagens_probs = [0.68, 0.22, 0.10]
-    dados['ViagemTrabalho'] = np.random.choice(['Raramente', 'Frequente', 'Nunca'], qtd_amostras, p=viagens_probs)
-
-    # Satisfação e equilíbrio
-    dados['SatisfacaoAmbiente'] = np.random.choice([1, 2, 3, 4], qtd_amostras, p=[0.08, 0.20, 0.45, 0.27])
+    # Satisfação e Work-Life
     dados['SatisfacaoTrabalho'] = np.random.choice([1, 2, 3, 4], qtd_amostras, p=[0.09, 0.21, 0.43, 0.27])
+    dados['SatisfacaoAmbiente'] = np.random.choice([1, 2, 3, 4], qtd_amostras, p=[0.08, 0.20, 0.45, 0.27])
     dados['SatisfacaoRelacionamento'] = np.random.choice([1, 2, 3, 4], qtd_amostras, p=[0.10, 0.20, 0.40, 0.30])
     dados['EquilibrioVida'] = np.random.choice([1, 2, 3, 4], qtd_amostras, p=[0.10, 0.25, 0.45, 0.20])
 
-    # Horas extras
-    prob_horas_extras = 0.25 + (65 - dados['Idade']) / 47 * 0.1 + (5 - dados['NivelCargo']) / 4 * 0.1
-    prob_horas_extras = np.clip(prob_horas_extras, 0.10, 0.60)
-    dados['HorasExtras'] = [np.random.choice(['Sim', 'Não'], p=[p, 1 - p]) for p in prob_horas_extras]
+    prob_extras = 0.25 + (65 - dados['Idade']) / 47 * 0.1 + (5 - dados['NivelCargo']) / 4 * 0.1
+    prob_extras = np.clip(prob_extras, 0.10, 0.60)
+    dados['HorasExtras'] = [np.random.choice(['Sim', 'Não'], p=[p, 1-p]) for p in prob_extras]
 
-    # Estado civil
-    dados['EstadoCivil'] = np.random.choice(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)'], qtd_amostras, p=[0.33, 0.53, 0.14])
+    dados['ViagemTrabalho'] = np.random.choice(
+        ['Raramente', 'Frequente', 'Nunca'], qtd_amostras, p=[0.68, 0.22, 0.10]
+    )
+    dados['DistanciaCasa'] = np.clip(np.random.exponential(6, qtd_amostras).astype(int) + 1, 1, 35)
 
-    # Score de desligamento
-    score_desligamento = np.zeros(qtd_amostras)
-    score_desligamento += (np.array(dados['SatisfacaoTrabalho']) == 1) * 0.15
-    score_desligamento += (np.array(dados['SatisfacaoAmbiente']) == 1) * 0.12
-    score_desligamento += (np.array(dados['EquilibrioVida']) == 1) * 0.10
-    score_desligamento += (np.array(dados['HorasExtras']) == 'Sim') * 0.08
-    score_desligamento += (np.array(dados['AnosUltimaPromocao']) > 5) * 0.04
-    score_desligamento += (np.array(dados['DistanciaCasa']) > 20) * 0.05
-    score_desligamento += (np.array(dados['EstadoCivil']) == 'Solteiro(a)') * 0.03
-    score_desligamento += (np.array(dados['EmpresasAnteriores']) > 4) * 0.04
-    score_desligamento -= (np.array(dados['NivelCargo']) >= 4) * 0.09
-    score_desligamento -= (np.array(dados['AnosEmpresa']) > 10) * 0.07
+    # Performance & Treinamento
+    dados['AvaliacaoDesempenho'] = np.random.choice([1, 2, 3, 4], qtd_amostras, p=[0.10, 0.20, 0.40, 0.30])
+    dados['TreinamentosUltimoAno'] = np.random.randint(0, 7, qtd_amostras)
 
-    prob_desligamento = np.clip(0.15 + score_desligamento, 0.05, 0.45)
-    aleatorio = np.random.rand(qtd_amostras)
-    dados['Desligamento'] = np.where(aleatorio < prob_desligamento, 'Sim', 'Não')
+    # Cálculo de score de desligamento
+    score = np.zeros(qtd_amostras)
+    score += (dados['SatisfacaoTrabalho'] == 1) * 0.15
+    score += (dados['SatisfacaoAmbiente'] == 1) * 0.12
+    score += (dados['SatisfacaoRelacionamento'] == 1) * 0.10
+    score += (np.array(dados['HorasExtras']) == 'Sim') * 0.08
+    score += (dados['AnosUltimaPromocao'] > 5) * 0.04
+    score += (dados['DistanciaCasa'] > 20) * 0.05
+    score += (dados['EstadoCivil'] == 'Solteiro(a)') * 0.03
+    score += (np.array(dados['EmpresasAnteriores']) > 4) * 0.04
+    score -= (dados['NivelCargo'] >= 4) * 0.09
+    score -= (dados['AnosEmpresa'] > 10) * 0.07
+
+    # Probabilidade ajustada e threshold para ~16%
+    prob_raw = 0.15 + score
+    prob = np.clip(prob_raw, 0.05, 0.45)
+    limiar = np.percentile(prob, 84)
+    dados['Desligamento'] = np.where(prob > limiar, 'Sim', 'Não')
 
     return pd.DataFrame(dados)
 
